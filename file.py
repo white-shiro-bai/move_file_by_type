@@ -3,9 +3,11 @@ import hashlib
 import shutil
 from pymediainfo import MediaInfo
 import json
+import multiprocessing
 
-srcdir = "D:\\wx\\MicroMsg\\2acc68cb96d0023451413244858b81c1" #需要整理的目录
-tardir = "D:\\wx\\autotar" #整理的目标目录
+srcdir = "d:\\wx\\acountdir" #需要整理的目录
+tardir = "d:\\190525微信归档\\账号文件" #整理的目标目录
+tread = 8 #需要并发的线程数
 
 def extname(file):
     #调用mediainfo识别无扩展名文件
@@ -61,48 +63,58 @@ def movefile(srcfile,dstfile):
         shutil.move(srcfile,dstfile)          #移动文件
         print ("move" + srcfile + "->" + dstfile)
 
-def get_all_file_info():
-    #主程序
-    files = all_path(srcdir)
-    for file in files:
-        dirname,filename=os.path.split(file)
-        ext = os.path.splitext(filename)
-        name,type=ext
-        #解出目录，文件名和扩展名
-        if type == '':
-            #如果没有扩展名，则执行检测文件类型
-            print ('读取文件：'+file)
-            print ('文件名：'+name)
-            type2 = extname(file)
-            md5 = GetFileMd5(file)
-            print ('文件类型:' + type2)
-            print ('md5是:' + md5)
-            if type2 == '无法识别的文件':
-                #如果无法检测出文件类型，则按照无法识别处理，做MD5防止重复和错误覆盖
-                targetfile = tardir+'\\'+str(type2)+'\\'+name+'_'+md5
-                print('移动文件:'+file+'到'+targetfile)
-                movefile(file,targetfile)
-                print('----------------------')
-            else:
-                #如果检测出文件类型，则修改扩展名并按照正常文件处理，做MD5防止重复和错误覆盖
-                targetfile = tardir+'\\'+str(type2)+'\\'+name+'_'+md5+'.'+str(type2)
-                print('移动文件:'+file+'到'+targetfile)
-                movefile(file,targetfile)
-                print('----------------------')
-
+def do_files(file):
+    dirname,filename=os.path.split(file)
+    ext = os.path.splitext(filename)
+    name,type=ext
+    #解出目录，文件名和扩展名
+    if type == '':
+        #如果没有扩展名，则执行检测文件类型
+        print ('读取文件：'+file)
+        print ('文件名：'+name)
+        type2 = extname(file)
+        md5 = GetFileMd5(file)
+        print ('文件类型:' + type2)
+        print ('md5是:' + md5)
+        if type2 == '无法识别的文件':
+            #如果无法检测出文件类型，则按照无法识别处理，做MD5防止重复和错误覆盖
+            targetfile = tardir+'\\'+str(type2)+'\\'+name+'_'+md5
+            print('移动文件:'+file+'到'+targetfile)
+            movefile(file,targetfile)
+            print('----------------------')
         else:
-            #如果文件自带扩展名，则不检测，只做MD5防止重复或错误覆盖
-            print ('读取文件：'+file)
-            print ('文件名：'+name)
-            type2 = type.replace('.','')
-            md5 = GetFileMd5(file)
-            print ('文件类型:' + type2)
-            print ('md5是:' + md5)
-            targetfile = tardir+'\\'+type2+'\\'+name+'_'+md5+'.'+str(type2)
+            #如果检测出文件类型，则修改扩展名并按照正常文件处理，做MD5防止重复和错误覆盖
+            targetfile = tardir+'\\'+str(type2)+'\\'+name+'_'+md5+'.'+str(type2)
             print('移动文件:'+file+'到'+targetfile)
             movefile(file,targetfile)
             print('----------------------')
 
+    else:
+        #如果文件自带扩展名，则不检测，只做MD5防止重复或错误覆盖
+        print ('读取文件：'+file)
+        print ('文件名：'+name)
+        type2 = type.replace('.','')
+        md5 = GetFileMd5(file)
+        print ('文件类型:' + type2)
+        print ('md5是:' + md5)
+        targetfile = tardir+'\\'+type2+'\\'+name+'_'+md5+'.'+str(type2)
+        print('移动文件:'+file+'到'+targetfile)
+        movefile(file,targetfile)
+        print('----------------------')
+
+def get_all_file_info():
+    #主程序
+    files = all_path(srcdir)
+    p = multiprocessing.Pool(processes = tread)
+    total_count = len(files)
+    print ('total_count:'+str(total_count))
+    count = 1
+    for file in files:
+        p.apply_async(do_files,(file,))
+        print( str(count) + 'of' + str(total_count) )
+        count = count + 1
+    p.close()
+    p.join()
 
 
 if __name__ == '__main__':
